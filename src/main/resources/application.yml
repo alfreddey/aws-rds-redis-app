@@ -1,0 +1,73 @@
+spring:
+  application:
+    name: todo-app
+
+  # PostgreSQL via RDS Proxy. The proxy enforces TLS (RequireTLS=true), so sslmode
+  # defaults to "require". Credentials come from Secrets Manager, injected by ECS as
+  # DB_USERNAME / DB_PASSWORD. Local dev can override the env vars (and set
+  # DB_SSLMODE=disable for a plain local Postgres).
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:todos}?sslmode=${DB_SSLMODE:require}
+    username: ${DB_USERNAME:todoadmin}
+    password: ${DB_PASSWORD:}
+    hikari:
+      pool-name: todo-pool
+      maximum-pool-size: 5
+      minimum-idle: 1
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Schema is owned by Flyway; Hibernate only validates the mapping against it.
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+  # ElastiCache for Redis (cluster-mode disabled). In-transit encryption / AUTH are
+  # not enabled on the cache, so this is a plaintext connection on 6379.
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2s
+      connect-timeout: 2s
+
+  cache:
+    type: redis
+
+app:
+  cache:
+    ttl-seconds: ${CACHE_TTL_SECONDS:60}
+  # Demo aid only: artificial latency on the DB read path so the Redis speed-up is
+  # visible. 0 = off.
+  simulated-read-delay-ms: ${SIMULATED_READ_DELAY_MS:0}
+
+server:
+  port: 8080
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  health:
+    # Cache is non-critical: a Redis outage must not fail the ALB health check, since
+    # the app degrades to reading from RDS. DB health stays on (the DB is essential).
+    redis:
+      enabled: false
+
+logging:
+  level:
+    com.amalitech.todo: INFO

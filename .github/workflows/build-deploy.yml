@@ -1,0 +1,157 @@
+name: build-and-deploy
+
+# Builds the container image, pushes it to ECR, and ships a blue/green deployment.
+#
+# Auth to AWS is via GitHub OIDC only (no long-lived keys): the job assumes the
+# app role created by the infra bootstrap stack.
+#
+# Ordering is deliberate and race-free:
+#   1. build + test the jar
+#   2. build the image, push the immutable :<sha> tag (does NOT trigger the pipeline)
+#   3. render taskdef.json from the live infra stack outputs + upload config.zip to S3
+#   4. push the :latest tag LAST — the EventBridge rule fires on :latest, so the
+#      pipeline always starts with the freshly-uploaded config.zip already in place.
+#
+# Before the platform stack exists (first ever image), steps 3 only run if the infra
+# stack is found; otherwise the job just publishes the image so the platform has
+# something to launch.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**/*.md"
+      - "diagrams/**"
+  workflow_dispatch:
+
+permissions:
+  id-token: write    # required for OIDC
+  contents: read
+
+# Configure these as repository Variables (Settings -> Secrets and variables -> Actions -> Variables):
+#   AWS_REGION         e.g. us-east-1
+#   AWS_APP_ROLE_ARN   bootstrap output GitHubActionsAppRoleArn (arn:aws:iam::<acct>:role/todo-app-prod-gha-app)
+#   ECR_REPOSITORY     todo-app-prod
+#   INFRA_STACK_NAME   the CloudFormation Git-sync root stack name (e.g. todo-app-prod)
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+  INFRA_STACK_NAME: ${{ vars.INFRA_STACK_NAME }}
+
+concurrency:
+  group: build-and-deploy
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build and test
+        run: ./mvnw -B verify
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_APP_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build image and push immutable SHA tag
+        id: build
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          set -euo pipefail
+          IMAGE="${REGISTRY}/${ECR_REPOSITORY}"
+          SHA_TAG="${GITHUB_SHA::7}"
+          docker build -t "${IMAGE}:${SHA_TAG}" -t "${IMAGE}:latest" .
+          # Push the SHA tag first; the EventBridge rule only fires on :latest, so this
+          # does not trigger a deployment yet.
+          docker push "${IMAGE}:${SHA_TAG}"
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "sha_tag=${SHA_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve infrastructure outputs
+        id: infra
+        run: |
+          set -euo pipefail
+          if ! aws cloudformation describe-stacks --stack-name "$INFRA_STACK_NAME" >/dev/null 2>&1; then
+            echo "Infra stack '$INFRA_STACK_NAME' not found - bootstrap phase, will publish image only."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          out() {
+            aws cloudformation describe-stacks --stack-name "$INFRA_STACK_NAME" \
+              --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text
+          }
+          {
+            echo "ready=true"
+            echo "exec_role=$(out TaskExecutionRoleArn)"
+            echo "task_role=$(out TaskRoleArn)"
+            echo "db_proxy=$(out DBProxyEndpoint)"
+            echo "redis=$(out RedisPrimaryEndpoint)"
+            echo "db_secret=$(out DBSecretArn)"
+            echo "config_bucket=$(out AppConfigBucketName)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Render taskdef.json and upload config.zip
+        if: steps.infra.outputs.ready == 'true'
+        env:
+          EXEC_ROLE: ${{ steps.infra.outputs.exec_role }}
+          TASK_ROLE: ${{ steps.infra.outputs.task_role }}
+          DB_PROXY: ${{ steps.infra.outputs.db_proxy }}
+          REDIS: ${{ steps.infra.outputs.redis }}
+          DB_SECRET: ${{ steps.infra.outputs.db_secret }}
+          CONFIG_BUCKET: ${{ steps.infra.outputs.config_bucket }}
+        run: |
+          set -euo pipefail
+          # '#' delimiter: ARNs/endpoints contain '/' and ':' but never '#'.
+          sed -e "s#<EXECUTION_ROLE_ARN>#${EXEC_ROLE}#g" \
+              -e "s#<TASK_ROLE_ARN>#${TASK_ROLE}#g" \
+              -e "s#<DB_PROXY_ENDPOINT>#${DB_PROXY}#g" \
+              -e "s#<REDIS_PRIMARY_ENDPOINT>#${REDIS}#g" \
+              -e "s#<DB_SECRET_ARN>#${DB_SECRET}#g" \
+              -e "s#<AWS_REGION>#${AWS_REGION}#g" \
+              taskdef.json > taskdef.rendered.json
+          # Leave <IMAGE1_NAME> literal: CodeDeploy substitutes it from the ECR source artifact.
+          mv taskdef.rendered.json taskdef.json
+          echo "--- rendered taskdef.json ---"; cat taskdef.json
+          zip -j config.zip taskdef.json appspec.yaml
+          aws s3 cp config.zip "s3://${CONFIG_BUCKET}/config.zip"
+
+      - name: Push :latest (triggers EventBridge -> CodePipeline -> CodeDeploy)
+        env:
+          IMAGE: ${{ steps.build.outputs.image }}
+        run: |
+          set -euo pipefail
+          docker push "${IMAGE}:latest"
+
+      - name: Summary
+        env:
+          IMAGE: ${{ steps.build.outputs.image }}
+          SHA_TAG: ${{ steps.build.outputs.sha_tag }}
+          READY: ${{ steps.infra.outputs.ready }}
+        run: |
+          {
+            echo "### Build & deploy"
+            echo ""
+            echo "- Image: \`${IMAGE}:${SHA_TAG}\` (+ \`:latest\`)"
+            if [ "${READY}" = "true" ]; then
+              echo "- config.zip uploaded; \`:latest\` push triggered the blue/green pipeline."
+            else
+              echo "- Bootstrap phase: image published only (infra stack not found yet)."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,10 @@
+target/
+.git/
+.github/
+.idea/
+*.iml
+.mvn/wrapper/maven-wrapper.jar
+**/*.md
+.DS_Store
+config.zip
+taskdef.rendered.json

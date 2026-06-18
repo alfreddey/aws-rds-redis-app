@@ -1,0 +1,19 @@
+# CodeDeploy AppSpec for the ECS blue/green deployment.
+#
+# Zipped together with taskdef.json into config.zip and uploaded to the deploy-config
+# bucket by the build-deploy workflow. CodePipeline's CodeDeployToECS action reads both
+# files from the root of that artifact.
+#
+# <TASK_DEFINITION> is a placeholder CodeDeploy replaces at deploy time with the task
+# definition it registers from taskdef.json.
+
+version: 0.0
+Resources:
+  - TargetService:
+      Type: AWS::ECS::Service
+      Properties:
+        TaskDefinition: <TASK_DEFINITION>
+        LoadBalancerInfo:
+          ContainerName: "todo-app"
+          ContainerPort: 8080
+        PlatformVersion: "LATEST"
