@@ -1,5 +1,6 @@
 package com.amalitech.todo.config;
 
+import com.amalitech.todo.web.dto.TaskListResponse;
 import com.amalitech.todo.web.dto.TaskResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
@@ -10,33 +11,34 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Guards the cache contract: a {@code List<TaskResponse>} must survive a round trip
- * through the exact serializer the Redis cache uses. This catches the classic
- * "immutable list / missing type info" deserialization failure without needing a
- * live Redis.
+ * Guards the cache contract: the value the {@code tasks} cache stores
+ * ({@link TaskListResponse}) must survive a round trip through the exact serializer the
+ * Redis cache uses. Caching a root-level {@code List} fails with this serializer (the
+ * root array is misread as a {@code [typeId, payload]} tuple) — wrapping it in a POJO
+ * fixes that, and this test pins the behaviour without needing a live Redis.
  */
 class CacheSerializationTest {
 
     private final GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer();
 
     @Test
-    void taskListRoundTripsThroughRedisSerializer() {
-        List<TaskResponse> original = new ArrayList<>();
-        original.add(sample(1L, "first", false));
-        original.add(sample(2L, "second", true));
+    void taskListResponseRoundTripsThroughRedisSerializer() {
+        List<TaskResponse> tasks = new ArrayList<>();
+        tasks.add(sample(1L, "first", false));
+        tasks.add(sample(2L, "second", true));
+        TaskListResponse original = new TaskListResponse(tasks);
 
         byte[] bytes = serializer.serialize(original);
         Object back = serializer.deserialize(bytes);
 
-        assertThat(back).isInstanceOf(List.class);
-        @SuppressWarnings("unchecked")
-        List<TaskResponse> restored = (List<TaskResponse>) back;
-        assertThat(restored).hasSize(2);
-        assertThat(restored.get(0).getTitle()).isEqualTo("first");
-        assertThat(restored.get(0).isCompleted()).isFalse();
-        assertThat(restored.get(1).getId()).isEqualTo(2L);
-        assertThat(restored.get(1).isCompleted()).isTrue();
-        assertThat(restored.get(1).getCreatedAt()).isEqualTo("2026-01-01T00:00Z");
+        assertThat(back).isInstanceOf(TaskListResponse.class);
+        TaskListResponse restored = (TaskListResponse) back;
+        assertThat(restored.getTasks()).hasSize(2);
+        assertThat(restored.getTasks().get(0).getTitle()).isEqualTo("first");
+        assertThat(restored.getTasks().get(0).isCompleted()).isFalse();
+        assertThat(restored.getTasks().get(1).getId()).isEqualTo(2L);
+        assertThat(restored.getTasks().get(1).isCompleted()).isTrue();
+        assertThat(restored.getTasks().get(1).getCreatedAt()).isEqualTo("2026-01-01T00:00Z");
     }
 
     private static TaskResponse sample(long id, String title, boolean completed) {

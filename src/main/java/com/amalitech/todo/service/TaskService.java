@@ -3,6 +3,7 @@ package com.amalitech.todo.service;
 import com.amalitech.todo.domain.Task;
 import com.amalitech.todo.repository.TaskRepository;
 import com.amalitech.todo.web.ResourceNotFoundException;
+import com.amalitech.todo.web.dto.TaskListResponse;
 import com.amalitech.todo.web.dto.TaskRequest;
 import com.amalitech.todo.web.dto.TaskResponse;
 import org.slf4j.Logger;
@@ -51,15 +52,14 @@ public class TaskService {
 
     @Transactional(readOnly = true)
     @Cacheable(cacheNames = TASKS_CACHE, key = "'all'")
-    public List<TaskResponse> list() {
+    public TaskListResponse listTasks() {
         log.info("CACHE MISS [tasks:all] - reading all tasks from PostgreSQL via RDS Proxy");
         simulateReadLatency();
-        // Collect into a concrete ArrayList: GenericJackson2JsonRedisSerializer records the
-        // runtime type, and an immutable list (Stream.toList()) cannot be reconstructed on a
-        // cache hit. ArrayList round-trips cleanly.
-        return repository.findAllByOrderByCreatedAtDesc().stream()
+        // Collect into a concrete ArrayList so the cached value reconstructs cleanly.
+        List<TaskResponse> tasks = repository.findAllByOrderByCreatedAtDesc().stream()
                 .map(TaskResponse::from)
                 .collect(Collectors.toCollection(ArrayList::new));
+        return new TaskListResponse(tasks);
     }
 
     @Transactional(readOnly = true)
@@ -75,7 +75,9 @@ public class TaskService {
     @Transactional
     @CacheEvict(cacheNames = {TASKS_CACHE, TASK_CACHE}, allEntries = true)
     public TaskResponse create(TaskRequest request) {
-        Task saved = repository.save(new Task(request.title(), request.description(), request.completed()));
+        // saveAndFlush so Hibernate populates the generated @CreationTimestamp /
+        // @UpdateTimestamp before we map the response.
+        Task saved = repository.saveAndFlush(new Task(request.title(), request.description(), request.completed()));
         log.info("Created task {} (cache evicted)", saved.getId());
         return TaskResponse.from(saved);
     }
@@ -88,7 +90,8 @@ public class TaskService {
         task.setTitle(request.title());
         task.setDescription(request.description());
         task.setCompleted(request.completed());
-        Task saved = repository.save(task);
+        // saveAndFlush so the refreshed @UpdateTimestamp is reflected in the response.
+        Task saved = repository.saveAndFlush(task);
         log.info("Updated task {} (cache evicted)", id);
         return TaskResponse.from(saved);
     }

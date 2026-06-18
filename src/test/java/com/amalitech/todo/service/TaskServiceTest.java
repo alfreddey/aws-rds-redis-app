@@ -43,7 +43,7 @@ class TaskServiceTest {
         when(repository.findAllByOrderByCreatedAtDesc())
                 .thenReturn(List.of(new Task("b", "second", false), new Task("a", "first", true)));
 
-        List<TaskResponse> result = service.list();
+        List<TaskResponse> result = service.listTasks().getTasks();
 
         assertThat(result).hasSize(2);
         assertThat(result.get(0).getTitle()).isEqualTo("b");
@@ -52,14 +52,14 @@ class TaskServiceTest {
 
     @Test
     void createPersistsAndReturnsResponse() {
-        when(repository.save(any(Task.class)))
+        when(repository.saveAndFlush(any(Task.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         TaskResponse created = service.create(new TaskRequest("write report", "due friday", false));
 
         assertThat(created.getTitle()).isEqualTo("write report");
         assertThat(created.getDescription()).isEqualTo("due friday");
-        verify(repository).save(any(Task.class));
+        verify(repository).saveAndFlush(any(Task.class));
     }
 
     @Test

@@ -34,7 +34,7 @@ public class TaskController {
     @GetMapping
     public List<TaskResponse> list() {
         long start = System.nanoTime();
-        List<TaskResponse> tasks = service.list();
+        List<TaskResponse> tasks = service.listTasks().getTasks();
         long ms = (System.nanoTime() - start) / 1_000_000;
         log.info("GET /api/tasks -> {} task(s) in {} ms", tasks.size(), ms);
         return tasks;
