@@ -96,7 +96,7 @@ slow (cache miss → DB) and logs `CACHE MISS [tasks:all] ...`; the next is fast
 
 ```bash
 ./mvnw verify                 # compile + unit tests
-docker build -t todo-app .    # multi-stage image (jar -> temurin JRE, non-root)
+docker build -t todo-app .    # multi-stage image (jar -> Amazon Corretto on Alpine, non-root)
 ```
 
 ## CI/CD — `.github/workflows/build-deploy.yml`
@@ -141,7 +141,7 @@ The OIDC trust policy on `AWS_APP_ROLE_ARN` is scoped to this repository
 ```
 .
 ├── pom.xml                    # Spring Boot 3.3, Java 21
-├── Dockerfile                 # multi-stage: Maven build -> temurin JRE (non-root)
+├── Dockerfile                 # multi-stage: Corretto build -> Corretto/Alpine runtime (non-root)
 ├── appspec.yaml               # CodeDeploy blue/green appspec
 ├── taskdef.json               # ECS task def template (placeholders rendered in CI; <IMAGE1_NAME> left for CodeDeploy)
 ├── .github/workflows/build-deploy.yml

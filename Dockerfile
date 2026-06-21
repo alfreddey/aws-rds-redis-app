@@ -1,22 +1,27 @@
 # syntax=docker/dockerfile:1
 
 # ---- Build stage: compile and package the Spring Boot fat jar ----
-FROM maven:3.9-eclipse-temurin-21 AS build
+FROM amazoncorretto:21 AS build
 WORKDIR /workspace
 
-# Cache dependencies first (layer is reused unless pom.xml changes)
-COPY pom.xml .
-RUN mvn -B -q dependency:go-offline
+# tar + gzip let the Maven wrapper extract its distribution (Amazon Linux 2023
+# ships neither unzip nor tar by default; the wrapper falls back to the .tar.gz).
+RUN yum install -y tar gzip && yum clean all
+
+# Cache dependencies first (layer is reused unless pom.xml/wrapper changes)
+COPY .mvn ./.mvn
+COPY mvnw pom.xml ./
+RUN ./mvnw -B -q dependency:go-offline
 
 COPY src ./src
-RUN mvn -B -q clean package -DskipTests
+RUN ./mvnw -B -q clean package -DskipTests
 
-# ---- Runtime stage: slim JRE, non-root ----
-FROM eclipse-temurin:21-jre-jammy
+# ---- Runtime stage: Amazon Corretto on Alpine, non-root ----
+FROM amazoncorretto:21-alpine-jdk
 WORKDIR /app
 
-# Run as an unprivileged user
-RUN groupadd --system app && useradd --system --gid app --uid 1001 app
+# Run as an unprivileged user (Alpine/BusyBox: addgroup/adduser, not groupadd/useradd)
+RUN addgroup -S app && adduser -S -G app -u 1001 app
 
 COPY --from=build /workspace/target/todo-app.jar /app/app.jar
 USER app
