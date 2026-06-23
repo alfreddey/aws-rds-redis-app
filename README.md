@@ -105,8 +105,7 @@ On every push to `main` the workflow authenticates to AWS with **GitHub OIDC**
 (no long-lived keys), then:
 
 1. builds and tests the jar (`./mvnw verify`);
-2. builds the image and pushes an immutable `:<sha>` tag (does **not** trigger a
-   deploy);
+2. builds the image (tagged `:latest`);
 3. renders `taskdef.json` from the live infra stack outputs and uploads
    `config.zip` (`taskdef.json` + `appspec.yaml`) to the deploy-config bucket;
 4. pushes `:latest` **last** — the EventBridge rule fires on `:latest`, so the
