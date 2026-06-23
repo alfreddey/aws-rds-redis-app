@@ -7,67 +7,115 @@
     <title>To-Do · ECS Fargate + RDS Proxy + Redis</title>
     <style>
         :root {
-            --bg: #0f172a;
-            --panel: #1e293b;
-            --panel-2: #273449;
-            --text: #e2e8f0;
-            --muted: #94a3b8;
-            --accent: #38bdf8;
-            --accent-2: #22c55e;
-            --danger: #f87171;
-            --border: #334155;
+            /* warm dark "stone" — wabi-sabi: earthen, muted, imperfect */
+            --bg: #1a1613;
+            --bg-glow: #241d17;
+            --panel: #221d18;
+            --panel-2: #2c2620;
+            --raised: #332c24;
+            --text: #ece3d4;
+            --muted: #a99e8c;
+            --faint: #7c7264;
+            --accent: #c98a5e;       /* clay / terracotta */
+            --accent-ink: #1c1712;
+            --accent-soft: rgba(201, 138, 94, .15);
+            --sage: #9caf88;         /* moss — completion */
+            --danger: #cf877a;       /* faded brick */
+            --danger-soft: rgba(207, 135, 122, .12);
+            --border: #382f26;
+            --border-strong: #4a4034;
+            --serif: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+            --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
         }
 
         * {
             box-sizing: border-box;
         }
 
+        html {
+            -webkit-font-smoothing: antialiased;
+        }
+
         body {
             margin: 0;
-            font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-            background: var(--bg);
+            font-family: var(--sans);
             color: var(--text);
-            line-height: 1.5;
+            line-height: 1.55;
+            background:
+                radial-gradient(900px 600px at 80% -5%, var(--bg-glow), transparent 60%),
+                radial-gradient(700px 500px at -10% 100%, #20191d, transparent 55%),
+                var(--bg);
+            background-attachment: fixed;
+        }
+
+        /* organic film grain — texture of a natural surface */
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 1;
+            opacity: .04;
+            mix-blend-mode: overlay;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
         }
 
         .wrap {
-            max-width: 760px;
+            position: relative;
+            z-index: 2;
+            max-width: 720px;
             margin: 0 auto;
-            padding: 32px 20px 64px;
+            padding: 56px 22px 80px;
+        }
+
+        header {
+            margin-bottom: 30px;
+            animation: rise .6s cubic-bezier(.2, .7, .2, 1) both;
         }
 
         header h1 {
-            margin: 0 0 4px;
-            font-size: 1.6rem;
+            margin: 0 0 6px;
+            font-family: var(--serif);
+            font-weight: 500;
+            font-size: 2.1rem;
+            letter-spacing: .2px;
+        }
+
+        header h1 .dot {
+            color: var(--accent);
         }
 
         header p {
-            margin: 0 0 24px;
+            margin: 0;
             color: var(--muted);
-            font-size: .9rem;
+            font-size: .88rem;
+            max-width: 56ch;
         }
 
         .card {
+            position: relative;
             background: var(--panel);
             border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 18px;
+            /* gently irregular corners — nothing machine-perfect */
+            border-radius: 16px 14px 17px 13px;
+            padding: 20px;
             margin-bottom: 18px;
+            box-shadow: 0 1px 0 rgba(255, 255, 255, .02) inset, 0 14px 30px -22px rgba(0, 0, 0, .8);
+            animation: rise .6s cubic-bezier(.2, .7, .2, 1) both;
+        }
+
+        .card:nth-of-type(1) {
+            animation-delay: .06s;
+        }
+
+        .card:nth-of-type(2) {
+            animation-delay: .12s;
         }
 
         form.add {
             display: flex;
             flex-direction: column;
-            gap: 10px;
-        }
-
-        .row {
-            display: flex;
-            gap: 10px;
-        }
-
-        .row>* {
-            flex: 1;
+            gap: 12px;
         }
 
         input[type=text],
@@ -76,41 +124,88 @@
             background: var(--panel-2);
             border: 1px solid var(--border);
             color: var(--text);
-            border-radius: 8px;
-            padding: 10px 12px;
-            font-size: .95rem;
+            border-radius: 11px 9px 11px 10px;
+            padding: 12px 14px;
+            font: inherit;
+            font-size: .96rem;
+            transition: border-color .25s ease, box-shadow .25s ease, background .25s ease;
+        }
+
+        input[type=text]::placeholder,
+        textarea::placeholder {
+            color: var(--faint);
+        }
+
+        input[type=text]:focus,
+        textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            background: var(--raised);
+            box-shadow: 0 0 0 4px var(--accent-soft);
         }
 
         textarea {
             resize: vertical;
-            min-height: 40px;
+            min-height: 44px;
         }
 
         button {
             cursor: pointer;
-            border: none;
-            border-radius: 8px;
-            padding: 10px 16px;
+            border: 1px solid transparent;
+            border-radius: 11px 9px 10px 11px;
+            padding: 11px 18px;
+            font: inherit;
             font-size: .9rem;
             font-weight: 600;
-            color: #06121f;
+            color: var(--accent-ink);
             background: var(--accent);
+            transition: transform .14s cubic-bezier(.2, .7, .2, 1), filter .2s ease, background .2s ease, box-shadow .2s ease, color .2s ease, border-color .2s ease;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.06);
+            box-shadow: 0 8px 18px -10px rgba(201, 138, 94, .7);
+        }
+
+        button:active {
+            transform: translateY(0) scale(.97);
+            filter: brightness(.98);
+        }
+
+        button:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 4px var(--accent-soft);
         }
 
         button.secondary {
-            background: var(--panel-2);
+            background: transparent;
+            color: var(--muted);
+            border-color: var(--border-strong);
+            box-shadow: none;
+        }
+
+        button.secondary:hover {
             color: var(--text);
-            border: 1px solid var(--border);
+            background: var(--panel-2);
+            box-shadow: none;
         }
 
         button.danger {
             background: transparent;
             color: var(--danger);
-            border: 1px solid var(--danger);
+            border-color: transparent;
+            box-shadow: none;
         }
 
-        button:hover {
-            filter: brightness(1.08);
+        button.danger:hover {
+            background: var(--danger-soft);
+            box-shadow: none;
+        }
+
+        .add-row {
+            display: flex;
+            justify-content: flex-end;
         }
 
         ul.tasks {
@@ -122,20 +217,83 @@
         li.task {
             display: flex;
             align-items: flex-start;
-            gap: 12px;
-            padding: 14px 0;
+            gap: 14px;
+            padding: 16px 6px;
             border-bottom: 1px solid var(--border);
+            border-radius: 10px;
+            transition: background-color .25s ease;
+            animation: rise .5s cubic-bezier(.2, .7, .2, 1) both;
+            animation-delay: calc(var(--i, 0) * 45ms);
+        }
+
+        li.task:hover {
+            background: rgba(255, 255, 255, .015);
         }
 
         li.task:last-child {
             border-bottom: none;
         }
 
+        li.task.removing {
+            overflow: hidden;
+            opacity: 0;
+            transform: translateX(16px);
+            padding-top: 0;
+            padding-bottom: 0;
+            border-bottom-color: transparent;
+            transition: max-height .36s ease, opacity .3s ease, transform .36s ease, padding .36s ease;
+        }
+
+        /* hand-tuned custom checkbox */
         li.task input[type=checkbox] {
-            margin-top: 4px;
-            width: 18px;
-            height: 18px;
-            accent-color: var(--accent-2);
+            appearance: none;
+            -webkit-appearance: none;
+            margin: 2px 0 0;
+            flex: 0 0 auto;
+            width: 21px;
+            height: 21px;
+            border: 1.5px solid var(--border-strong);
+            border-radius: 8px 6px 8px 7px;
+            background: var(--panel-2);
+            cursor: pointer;
+            position: relative;
+            transition: background .22s ease, border-color .22s ease, transform .14s ease;
+        }
+
+        li.task input[type=checkbox]:hover {
+            border-color: var(--sage);
+        }
+
+        li.task input[type=checkbox]:active {
+            transform: scale(.9);
+        }
+
+        li.task input[type=checkbox]:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 4px rgba(156, 175, 136, .2);
+        }
+
+        li.task input[type=checkbox]:checked {
+            background: var(--sage);
+            border-color: var(--sage);
+        }
+
+        li.task input[type=checkbox]::after {
+            content: "";
+            position: absolute;
+            left: 7px;
+            top: 3px;
+            width: 5px;
+            height: 10px;
+            border: solid var(--accent-ink);
+            border-width: 0 2px 2px 0;
+            transform: rotate(42deg) scale(0);
+            transform-origin: center;
+            transition: transform .2s cubic-bezier(.5, 1.6, .5, 1);
+        }
+
+        li.task input[type=checkbox]:checked::after {
+            transform: rotate(42deg) scale(1);
         }
 
         .task-body {
@@ -144,51 +302,131 @@
         }
 
         .task-title {
-            font-weight: 600;
+            font-family: var(--serif);
+            font-size: 1.06rem;
+            font-weight: 500;
             word-break: break-word;
+            transition: color .3s ease, opacity .3s ease;
         }
 
         .task-title.done {
             text-decoration: line-through;
+            text-decoration-color: var(--faint);
             color: var(--muted);
+            opacity: .75;
         }
 
         .task-desc {
             color: var(--muted);
-            font-size: .88rem;
+            font-size: .9rem;
             white-space: pre-wrap;
             word-break: break-word;
+            margin-top: 2px;
         }
 
         .task-meta {
-            color: #64748b;
-            font-size: .75rem;
-            margin-top: 4px;
+            color: var(--faint);
+            font-size: .74rem;
+            margin-top: 6px;
+            letter-spacing: .2px;
         }
 
         .actions {
             display: flex;
+            gap: 6px;
+            flex: 0 0 auto;
+            opacity: .5;
+            transition: opacity .25s ease;
+        }
+
+        li.task:hover .actions,
+        li.task:focus-within .actions {
+            opacity: 1;
+        }
+
+        .actions button {
+            padding: 7px 12px;
+            font-size: .82rem;
+        }
+
+        /* inline edit fields */
+        .edit-fields {
+            display: flex;
+            flex-direction: column;
             gap: 8px;
+            animation: rise .3s ease both;
+        }
+
+        .confirm {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: .82rem;
+            color: var(--danger);
+            animation: rise .25s ease both;
         }
 
         .status {
             font-size: .82rem;
             color: var(--muted);
             min-height: 1.2em;
+            margin-bottom: 6px;
+            transition: opacity .3s ease;
+        }
+
+        .status.flash {
+            animation: flash .5s ease;
         }
 
         .status b {
             color: var(--accent);
+            font-weight: 600;
         }
 
         .empty {
             color: var(--muted);
+            font-family: var(--serif);
+            font-style: italic;
             text-align: center;
-            padding: 24px 0;
+            padding: 28px 0;
+            animation: rise .4s ease both;
         }
 
         a {
             color: var(--accent);
+        }
+
+        @keyframes rise {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes flash {
+            0% {
+                opacity: .35;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+
+            *,
+            *::before,
+            *::after {
+                animation-duration: .001ms !important;
+                animation-delay: 0 !important;
+                transition-duration: .001ms !important;
+            }
         }
     </style>
 </head>
@@ -196,15 +434,15 @@
 <body>
     <div class="wrap">
         <header>
-            <h1>To-Do V0</h1>
-            <p>Spring Boot on ECS Fargate · writes &rarr; RDS (via RDS Proxy) · reads cached in ElastiCache Redis</p>
+            <h1>To-Do <span class="dot">·</span> V0</h1>
+            <p>Spring Boot on ECS Fargate &middot; writes &rarr; RDS (via RDS Proxy) &middot; reads cached in ElastiCache Redis</p>
         </header>
 
         <div class="card">
             <form class="add" id="add-form">
                 <input type="text" id="title" placeholder="What needs doing?" maxlength="255" required />
                 <textarea id="description" placeholder="Notes (optional)" maxlength="10000"></textarea>
-                <div class="row" style="flex: 0;">
+                <div class="add-row">
                     <button type="submit">Add task</button>
                 </div>
             </form>
@@ -220,8 +458,14 @@
         const API = "/api/tasks";
         const $ = (id) => document.getElementById(id);
         const statusEl = $("status");
+        let TASKS = [];
 
-        function setStatus(html) { statusEl.innerHTML = html; }
+        function setStatus(html) {
+            statusEl.innerHTML = html;
+            statusEl.classList.remove("flash");
+            void statusEl.offsetWidth; // restart the flash animation
+            statusEl.classList.add("flash");
+        }
         function escapeHtml(s) {
             return (s ?? "").replace(/[&<>"']/g, (c) => (
                 { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
@@ -248,16 +492,21 @@
         }
 
         function render(tasks) {
+            TASKS = tasks;
             const list = $("tasks");
             list.innerHTML = "";
             if (!tasks.length) {
-                list.innerHTML = '<li class="empty">No tasks yet — add one above.</li>';
+                list.innerHTML = '<li class="empty">Nothing here yet — a quiet, empty list.</li>';
                 return;
             }
-            for (const t of tasks) {
-                const li = document.createElement("li");
-                li.className = "task";
-                li.innerHTML = `
+            tasks.forEach((t, i) => list.appendChild(buildTask(t, i)));
+        }
+
+        function buildTask(t, i) {
+            const li = document.createElement("li");
+            li.className = "task";
+            li.style.setProperty("--i", i);
+            li.innerHTML = `
                 <input type="checkbox" ${t.completed ? "checked" : ""} title="Toggle complete"/>
                 <div class="task-body">
                     <div class="task-title ${t.completed ? "done" : ""}">${escapeHtml(t.title)}</div>
@@ -268,11 +517,60 @@
                     <button class="secondary" data-act="edit">Edit</button>
                     <button class="danger" data-act="delete">Delete</button>
                 </div>`;
-                li.querySelector('input[type=checkbox]').addEventListener("change", (e) => toggle(t, e.target.checked));
-                li.querySelector('[data-act=edit]').addEventListener("click", () => edit(t));
-                li.querySelector('[data-act=delete]').addEventListener("click", () => remove(t));
-                list.appendChild(li);
-            }
+            li.querySelector('input[type=checkbox]').addEventListener("change", (e) => toggle(t, e.target.checked));
+            li.querySelector('[data-act=edit]').addEventListener("click", () => enterEdit(li, t));
+            li.querySelector('[data-act=delete]').addEventListener("click", () => askDelete(li, t));
+            return li;
+        }
+
+        function enterEdit(li, t) {
+            const body = li.querySelector(".task-body");
+            const actions = li.querySelector(".actions");
+            body.innerHTML = `
+                <div class="edit-fields">
+                    <input type="text" class="edit-title" maxlength="255" value="${escapeHtml(t.title)}" />
+                    <textarea class="edit-desc" maxlength="10000" placeholder="Notes (optional)">${escapeHtml(t.description || "")}</textarea>
+                </div>`;
+            actions.innerHTML = `
+                <button data-act="save">Save</button>
+                <button class="secondary" data-act="cancel">Cancel</button>`;
+            const titleInput = body.querySelector(".edit-title");
+            titleInput.focus();
+            titleInput.setSelectionRange(titleInput.value.length, titleInput.value.length);
+
+            const save = async () => {
+                const title = titleInput.value.trim();
+                if (!title) { titleInput.focus(); return; }
+                try {
+                    await send("PUT", `${API}/${t.id}`, { title, description: body.querySelector(".edit-desc").value.trim(), completed: t.completed });
+                    await loadTasks();
+                } catch (err) { setStatus("Update failed: " + escapeHtml(err.message)); }
+            };
+            actions.querySelector('[data-act=save]').addEventListener("click", save);
+            actions.querySelector('[data-act=cancel]').addEventListener("click", () => render(TASKS));
+            titleInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); save(); } if (e.key === "Escape") render(TASKS); });
+        }
+
+        function askDelete(li, t) {
+            const actions = li.querySelector(".actions");
+            actions.innerHTML = `
+                <span class="confirm">Delete?</span>
+                <button class="danger" data-act="confirm">Yes</button>
+                <button class="secondary" data-act="keep">Keep</button>`;
+            actions.querySelector('[data-act=keep]').addEventListener("click", () => render(TASKS));
+            actions.querySelector('[data-act=confirm]').addEventListener("click", async () => {
+                try {
+                    await send("DELETE", `${API}/${t.id}`);
+                    animateRemove(li, loadTasks);
+                } catch (err) { setStatus("Delete failed: " + escapeHtml(err.message)); }
+            });
+        }
+
+        function animateRemove(li, done) {
+            li.style.maxHeight = li.scrollHeight + "px";
+            li.classList.add("removing");
+            requestAnimationFrame(() => { li.style.maxHeight = "0px"; });
+            setTimeout(done, 360);
         }
 
         async function send(method, url, body) {
@@ -305,23 +603,6 @@
                 await send("PUT", `${API}/${t.id}`, { title: t.title, description: t.description, completed });
                 await loadTasks();
             } catch (err) { setStatus("Update failed: " + escapeHtml(err.message)); await loadTasks(); }
-        }
-
-        async function edit(t) {
-            const title = prompt("Title:", t.title);
-            if (title === null) return;
-            const description = prompt("Notes:", t.description || "");
-            if (description === null) return;
-            try {
-                await send("PUT", `${API}/${t.id}`, { title: title.trim(), description: description.trim(), completed: t.completed });
-                await loadTasks();
-            } catch (err) { setStatus("Update failed: " + escapeHtml(err.message)); }
-        }
-
-        async function remove(t) {
-            if (!confirm(`Delete "${t.title}"?`)) return;
-            try { await send("DELETE", `${API}/${t.id}`); await loadTasks(); }
-            catch (err) { setStatus("Delete failed: " + escapeHtml(err.message)); }
         }
 
         loadTasks();
