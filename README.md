@@ -122,19 +122,31 @@ Settings → Secrets and variables → Actions → **Variables**:
 
 | Variable | Value |
 |----------|-------|
-| `AWS_REGION` | e.g. `us-east-1` |
-| `AWS_APP_ROLE_ARN` | infra bootstrap output `GitHubActionsAppRoleArn` (`arn:aws:iam::<acct>:role/todo-app-prod-gha-app`) |
+| `AWS_REGION` | e.g. `eu-north-1` |
 | `ECR_REPOSITORY` | `todo-app-prod` |
-| `INFRA_STACK_NAME` | the CloudFormation Git-sync root stack name (e.g. `todo-app-prod`) |
+| `INFRA_STACK_NAME` | the CloudFormation **root stack name** — e.g. `aws-rds-elasticache`. This is the stack's name in the infra repo, **not** the `todo-app-prod` resource prefix; find it with `aws cloudformation list-stacks`. If it's wrong, the deploy fails with `config.zip` not found (the workflow can't read the stack outputs, so it never uploads it). |
+
+…and one **Secret** (Settings → Secrets and variables → Actions → **Secrets**):
+
+| Secret | Value |
+|--------|-------|
+| `AWS_APP_ROLE_ARN` | infra bootstrap output `GitHubActionsAppRoleArn` (`arn:aws:iam::<acct>:role/todo-app-prod-gha-app`) |
 
 The OIDC trust policy on `AWS_APP_ROLE_ARN` is scoped to this repository
 (`repo:<org>/<this-repo>:*`), so the repo name here must match the
-`GitHubAppRepo` value passed to the infra bootstrap stack.
+`GitHubAppRepo` value passed to the infra bootstrap stack. The role's policy
+must allow `cloudformation:DescribeStacks` on the infra stack (to read the
+outputs), plus `s3:PutObject` on `config.zip` and the ECR push actions —
+without `DescribeStacks` the workflow can't render `taskdef.json` and the
+deploy fails with `config.zip` not found.
 
 > **First deploy:** before the platform stack exists, the workflow can't render
-> `taskdef.json`, so it just publishes the image (so the ECS service has
-> something to launch). Once the platform is up, subsequent pushes perform the
-> full blue/green deploy.
+> `taskdef.json`. Run it manually (Actions → build-and-deploy → **Run workflow**)
+> with **`bootstrap=true`** to publish the image only, so the ECS service has
+> something to launch. Once the platform is up, pushes to `main` perform the full
+> blue/green deploy. If `INFRA_STACK_NAME` is misconfigured, a normal push now
+> **fails loudly** at the infra-lookup step instead of triggering a deploy that
+> can't find `config.zip`.
 
 ## Project layout
 
