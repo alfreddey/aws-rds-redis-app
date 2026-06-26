@@ -23,16 +23,16 @@
       },
       "environment": [
         { "name": "DB_HOST", "value": "<DB_PROXY_ENDPOINT>" },
-        { "name": "DB_PORT", "value": "5432" },
-        { "name": "DB_NAME", "value": "todos" },
         { "name": "DB_SSLMODE", "value": "require" },
-        { "name": "REDIS_HOST", "value": "<REDIS_PRIMARY_ENDPOINT>" },
-        { "name": "REDIS_PORT", "value": "6379" },
-        { "name": "SIMULATED_READ_DELAY_MS", "value": "800" }
+        { "name": "REDIS_HOST", "value": "<REDIS_PRIMARY_ENDPOINT>" }
       ],
       "secrets": [
         { "name": "DB_USERNAME", "valueFrom": "<DB_SECRET_ARN>:username::" },
-        { "name": "DB_PASSWORD", "valueFrom": "<DB_SECRET_ARN>:password::" }
+        { "name": "DB_PASSWORD", "valueFrom": "<DB_SECRET_ARN>:password::" },
+        { "name": "DB_PORT", "valueFrom": "/todo-app/prod/db-port" },
+        { "name": "DB_NAME", "valueFrom": "/todo-app/prod/db-name" },
+        { "name": "REDIS_PORT", "valueFrom": "/todo-app/prod/redis-port" },
+        { "name": "SIMULATED_READ_DELAY_MS", "valueFrom": "/todo-app/prod/simulated-read-delay-ms" }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",
