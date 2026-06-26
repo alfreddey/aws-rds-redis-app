@@ -27,7 +27,8 @@
         { "name": "DB_NAME", "value": "todos" },
         { "name": "DB_SSLMODE", "value": "require" },
         { "name": "REDIS_HOST", "value": "<REDIS_PRIMARY_ENDPOINT>" },
-        { "name": "REDIS_PORT", "value": "6379" }
+        { "name": "REDIS_PORT", "value": "6379" },
+        { "name": "SIMULATED_READ_DELAY_MS", "value": "800" }
       ],
       "secrets": [
         { "name": "DB_USERNAME", "valueFrom": "<DB_SECRET_ARN>:username::" },
